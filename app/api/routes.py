@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, Header, HTTPException, status
 from typing import Optional
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+
 from app.auth.jwt import get_current_user, User, oauth2_scheme
 from app.database.db_manager import (
     get_client_data, get_account_balance, 
@@ -11,6 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 
 router = APIRouter()
 llm_service = LLMService()
+limiter = Limiter(key_func=get_remote_address)
 
 class QueryRequest(BaseModel):
     query: str
@@ -32,6 +37,7 @@ async def get_optional_user(authorization: Optional[str] = Header(None)):
     return None
 
 @router.post("/secure-query", response_model=QueryResponse)
+@limiter.limit('10/minute')
 async def secure_query(
     request: QueryRequest,
     current_user: Optional[User] = Depends(get_optional_user)
@@ -104,6 +110,7 @@ async def get_context_for_intent(intent_tag: str, username: str = None) -> str:
         return "\n\n".join([item['info'] for item in data_items]) if data_items else ""
 
 @router.get("/users/me")
+@limiter.limit('5/minute')
 async def get_current_user_info(current_user: Optional[User] = Depends(get_optional_user)):
     if not current_user:
         raise HTTPException(
