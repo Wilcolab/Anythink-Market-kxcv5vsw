@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.requests import Request
+from slowapi.errors import RateLimitExceeded
 import asyncio
 import time
 import os
@@ -67,6 +68,14 @@ templates = Jinja2Templates(directory="app/templates")
 
 app.include_router(api_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request, exc):
+    raise HTTPException(
+        status_code=429,
+        detail="Rate limit exceeded, please try again later."
+    )
+
 
 @app.get("/health")
 async def health_check():
